@@ -655,7 +655,13 @@ function ExtraPaymentControl({ value, onChange }) {
             type="text"
             inputMode="numeric"
             value={displayValue}
-            onChange={e => setInputStr(e.target.value)}
+            onChange={e => {
+              const str = e.target.value;
+              setInputStr(str);
+              const parsed = Math.max(0, parseFloat(String(str).replace(/\s/g, "").replace(",", "")) || 0);
+              const clamped = Math.min(1000000, parsed);
+              onChange(clamped);
+            }}
             onFocus={handleFocus}
             onBlur={handleBlur}
             onKeyDown={handleKeyDown}
@@ -1050,7 +1056,10 @@ function Field({ label, value, onChange, prefix, step = 1, integer = false, type
     if (type === "month") {
       onChange(e.target.value);
     } else if (isNumeric) {
-      setInputStr(e.target.value);
+      const str = e.target.value;
+      setInputStr(str);
+      const parsed = integer ? (parseInt(str, 10) || 0) : (parseFloat(str) || 0);
+      onChange(parsed);
     } else {
       onChange(integer ? parseInt(e.target.value) || 0 : parseFloat(e.target.value) || 0);
     }
