@@ -694,62 +694,133 @@ function ExtraPaymentControl({ value, onChange }) {
 // ══════════════════════════════════════════════════════════════════════════════
 // TAB 2 — REALITY TRACKER
 // ══════════════════════════════════════════════════════════════════════════════
+function CaptureMonthModal({ open, onClose, onCapture, basePayment, startDate, maxMonth, existingEntry, nextUncapturedMonth }) {
+  const { tokens: T } = useTheme();
+  const [month, setMonth] = useState(1);
+  const [bondRepayment, setBondRepayment] = useState("");
+  const [extra, setExtra] = useState("");
+  const [lumpSum, setLumpSum] = useState("");
+
+  useEffect(() => {
+    if (open) {
+      setMonth(existingEntry?.month ?? nextUncapturedMonth ?? 1);
+      setBondRepayment(existingEntry ? String(existingEntry.bondRepayment) : String(basePayment));
+      setExtra(existingEntry ? (existingEntry.extra === 0 ? "" : String(existingEntry.extra)) : "");
+      setLumpSum(existingEntry ? (existingEntry.lumpSum === 0 ? "" : String(existingEntry.lumpSum)) : "");
+    }
+  }, [open, existingEntry, basePayment, nextUncapturedMonth]);
+
+  const handleCapture = () => {
+    const m = Math.max(1, Math.min(maxMonth, parseInt(String(month), 10) || 1));
+    const bond = parseFloat(String(bondRepayment).replace(/\s/g, "").replace(",", "")) || basePayment;
+    const ext = parseFloat(String(extra).replace(/\s/g, "").replace(",", "")) || 0;
+    const lump = parseFloat(String(lumpSum).replace(/\s/g, "").replace(",", "")) || 0;
+    onCapture({ month: m, bondRepayment: bond, extra: ext, lumpSum: lump });
+    onClose();
+  };
+
+  if (!open) return null;
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.4)" }} onClick={onClose}>
+      <div style={{ background: T.card, borderRadius: 12, padding: 24, maxWidth: 400, width: "90%", boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)" }} onClick={e => e.stopPropagation()}>
+        <div style={{ fontFamily: "Inter", fontWeight: 600, fontSize: 18, marginBottom: 20 }}>{existingEntry ? "Edit Month" : "Capture Month"}</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <div>
+            <label style={{ fontFamily: "Inter", fontSize: 14, fontWeight: 500, color: T.textSecondary, display: "block", marginBottom: 6 }}>Month</label>
+            <input type="text" inputMode="numeric" value={month} onChange={e => setMonth(e.target.value)} placeholder="1"
+              style={{ fontFamily: "Inter", fontSize: 14, width: "100%", padding: "10px 14px", border: `1px solid ${T.border}`, borderRadius: 8, background: T.card, color: T.text, outline: "none" }} />
+          </div>
+          <div>
+            <label style={{ fontFamily: "Inter", fontSize: 14, fontWeight: 500, color: T.textSecondary, display: "block", marginBottom: 6 }}>Bond repayment (R)</label>
+            <input type="text" inputMode="numeric" value={bondRepayment} onChange={e => setBondRepayment(e.target.value)} placeholder={String(basePayment)}
+              style={{ fontFamily: "Inter", fontSize: 14, width: "100%", padding: "10px 14px", border: `1px solid ${T.border}`, borderRadius: 8, background: T.card, color: T.text, outline: "none" }} />
+          </div>
+          <div>
+            <label style={{ fontFamily: "Inter", fontSize: 14, fontWeight: 500, color: T.textSecondary, display: "block", marginBottom: 6 }}>Extra payment (R)</label>
+            <input type="text" inputMode="numeric" value={extra} onChange={e => setExtra(e.target.value)} placeholder="0"
+              style={{ fontFamily: "Inter", fontSize: 14, width: "100%", padding: "10px 14px", border: `1px solid ${T.border}`, borderRadius: 8, background: T.card, color: T.text, outline: "none" }} />
+          </div>
+          <div>
+            <label style={{ fontFamily: "Inter", fontSize: 14, fontWeight: 500, color: T.textSecondary, display: "block", marginBottom: 6 }}>Lump sum (R) — optional</label>
+            <input type="text" inputMode="numeric" value={lumpSum} onChange={e => setLumpSum(e.target.value)} placeholder="0"
+              style={{ fontFamily: "Inter", fontSize: 14, width: "100%", padding: "10px 14px", border: `1px solid ${T.border}`, borderRadius: 8, background: T.card, color: T.text, outline: "none" }} />
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 12, marginTop: 24 }}>
+          <button onClick={handleCapture} style={{ fontFamily: "Inter", fontWeight: 600, padding: "10px 20px", background: T.primary, color: "white", border: "none", borderRadius: 8, cursor: "pointer" }}>Capture</button>
+          <button onClick={onClose} style={{ fontFamily: "Inter", fontWeight: 500, padding: "10px 20px", background: T.bgSubtle, color: T.textSecondary, border: `1px solid ${T.border}`, borderRadius: 8, cursor: "pointer" }}>Cancel</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function TrackerTab({ params }) {
   const { tokens: T, fmtZAR, fmtShortZAR, isVisible, toggleTotal } = useTheme();
   const [startDate, setStartDate] = useState("2026-07");
   const [extraTarget, setExtraTarget] = useState(2000);
   const [entries, setEntries] = useState([]);
-  const [inputExtra, setInputExtra] = useState("");
-  const [inputLumpSum, setInputLumpSum] = useState("");
-  const [editMonth, setEditMonth] = useState(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editEntryMonth, setEditEntryMonth] = useState(null);
+  const [logTab, setLogTab] = useState(0);
 
   const basePayment = calcMonthlyPayment(params.principal, params.rate, params.term);
   const projected = useMemo(() => buildAmortization(params.principal, params.rate, params.term, extraTarget), [params, extraTarget]);
   const baseline  = useMemo(() => buildAmortization(params.principal, params.rate, params.term, 0), [params]);
 
-  // Build reality track (includes lump sum payments to principal)
+  const entriesByMonth = useMemo(() => Object.fromEntries(entries.map(e => [e.month, e])), [entries]);
+  const sortedEntries = useMemo(() => [...entries].sort((a, b) => a.month - b.month), [entries]);
+  const maxMonth = Math.max(projected.length, sortedEntries.length > 0 ? Math.max(...sortedEntries.map(e => e.month)) + 1 : 1);
+
+  // Build reality track (uses bondRepayment + extra, entriesByMonth lookup)
   const realityTrack = useMemo(() => {
     const r_month = params.rate / 100 / 12;
     let balance = params.principal;
     const rows = [];
-    for (let i = 0; i < Math.max(projected.length, entries.length + 1); i++) {
+    for (let i = 0; i < maxMonth; i++) {
+      const monthNum = i + 1;
       const interest = balance * r_month;
-      const entry = entries[i];
-      const extraPaid = entry?.extra ?? null;
-      const lumpSum = entry?.lumpSum ?? 0;
-      const totalPaid = extraPaid !== null ? basePayment + extraPaid : null;
+      const entry = entriesByMonth[monthNum];
+      const hasEntry = !!entry;
+      const totalPaid = hasEntry ? (entry.bondRepayment + (entry.extra ?? 0)) : null;
       const principalPaid = totalPaid !== null ? Math.max(0, totalPaid - interest) : null;
       if (principalPaid !== null) balance = Math.max(0, balance - principalPaid);
-      if (lumpSum > 0) balance = Math.max(0, balance - lumpSum);
+      if (hasEntry && (entry.lumpSum ?? 0) > 0) balance = Math.max(0, balance - (entry.lumpSum ?? 0));
 
       rows.push({
-        month: i + 1,
+        month: monthNum,
         projected: projected[i]?.balance ?? 0,
         base: baseline[i]?.balance ?? 0,
-        actual: extraPaid !== null ? balance : null,
+        actual: hasEntry ? balance : null,
         extraTarget,
-        extraActual: extraPaid,
-        lumpSum,
-        actualBalance: extraPaid !== null ? balance : null,
+        extraActual: hasEntry ? (entry.extra ?? 0) : null,
+        lumpSum: hasEntry ? (entry.lumpSum ?? 0) : 0,
+        actualBalance: hasEntry ? balance : null,
       });
     }
     return rows;
-  }, [params, projected, baseline, entries, basePayment, extraTarget]);
+  }, [params, projected, baseline, entriesByMonth, basePayment, extraTarget, maxMonth]);
 
   const chartData = realityTrack.filter((_, i) => i % 3 === 0);
 
-  const addOrEdit = () => {
-    const monthIdx = editMonth !== null ? editMonth : entries.length;
-    const updated = [...entries];
-    updated[monthIdx] = {
-      month: monthIdx + 1,
-      extra: parseFloat(inputExtra) || 0,
-      lumpSum: parseFloat(inputLumpSum) || 0,
-    };
-    setEntries(updated);
-    setInputExtra("");
-    setInputLumpSum("");
-    setEditMonth(null);
+  const addOrUpdateEntry = (entry) => {
+    const withoutOld = editEntryMonth != null ? entries.filter(e => e.month !== editEntryMonth) : entries;
+    const idx = withoutOld.findIndex(e => e.month === entry.month);
+    let updated;
+    if (idx >= 0) {
+      updated = [...withoutOld];
+      updated[idx] = entry;
+    } else {
+      updated = [...withoutOld, entry];
+    }
+    setEntries(updated.sort((a, b) => a.month - b.month));
+    setModalOpen(false);
+    setEditEntryMonth(null);
+  };
+
+  const removeEntry = (month) => {
+    setEntries(entries.filter(e => e.month !== month));
   };
 
   const startYearMonth = (idx) => {
@@ -758,10 +829,25 @@ function TrackerTab({ params }) {
     return date.toLocaleString("en-ZA", { month: "short", year: "2-digit" });
   };
 
+  const lumpSumRecords = useMemo(() => {
+    const withLump = sortedEntries.filter(e => (e.lumpSum ?? 0) > 0);
+    let cum = 0;
+    return withLump.map(e => {
+      cum += e.lumpSum ?? 0;
+      return { month: e.month, amount: e.lumpSum ?? 0, cumulative: cum };
+    });
+  }, [sortedEntries]);
+
+  const capturedMonths = useMemo(() => new Set(entries.map(e => e.month)), [entries]);
+  const nextUncapturedMonth = useMemo(() => {
+    for (let m = 1; m <= maxMonth; m++) if (!capturedMonths.has(m)) return m;
+    return maxMonth + 1;
+  }, [capturedMonths, maxMonth]);
+
   const totalExtraProjected = projected.length * extraTarget;
   const totalExtraActual = entries.reduce((s, e) => s + (e?.extra ?? 0), 0);
   const totalLumpSumActual = entries.reduce((s, e) => s + (e?.lumpSum ?? 0), 0);
-  const trackedMonths = entries.filter(e => e !== undefined).length;
+  const trackedMonths = entries.length;
   const avgActual = trackedMonths > 0 ? totalExtraActual / trackedMonths : 0;
   const getTdStyle = (tok) => ({ padding: "16px 24px", textAlign: "right", color: tok.text, borderBottom: `1px solid ${tok.borderLight}`, fontFamily: "Inter" });
 
@@ -810,104 +896,105 @@ function TrackerTab({ params }) {
         </ResponsiveContainer>
       </ChartCard>
 
-      {/* Monthly log */}
-      <ChartCard title="Monthly Extra Payment Log" titleAction={
+      {/* Monthly Payment Log */}
+      <ChartCard title="Monthly Payment Log" titleAction={
         <button onClick={() => toggleTotal("track-table")} title={isVisible("track-table") ? "Hide table" : "Reveal table"} style={{ display: "flex", padding: 4, background: "transparent", border: "none", cursor: "pointer", color: T.textTertiary }}>
           {isVisible("track-table") ? <Eye size={18} /> : <EyeOff size={18} />}
         </button>
       }>
-        <div style={{ display: "flex", gap: 12, marginBottom: 20, flexWrap: "wrap", alignItems: "flex-end" }}>
-          <div>
-            <label style={{ fontFamily: "Inter", fontSize: 14, fontWeight: 500, color: T.textSecondary, display: "block", marginBottom: 6 }}>
-              {editMonth !== null ? `EDITING MONTH ${editMonth + 1}` : `LOG MONTH ${entries.length + 1}`}
-            </label>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <input
-                type="text"
-                inputMode="numeric"
-                placeholder="Extra (R)"
-                value={inputExtra}
-                onChange={e => setInputExtra(e.target.value)}
-                style={{
-                  fontFamily: "Inter", fontSize: 14, background: T.card,
-                  border: `1px solid ${T.border}`, borderRadius: 8, padding: "10px 14px",
-                  color: T.text, width: 140, outline: "none", minHeight: 40,
-                }}
-              />
-              <input
-                type="text"
-                inputMode="numeric"
-                placeholder="Lump sum (R)"
-                value={inputLumpSum}
-                onChange={e => setInputLumpSum(e.target.value)}
-                style={{
-                  fontFamily: "Inter", fontSize: 14, background: T.card,
-                  border: `1px solid ${T.border}`, borderRadius: 8, padding: "10px 14px",
-                  color: T.text, width: 140, outline: "none", minHeight: 40,
-                }}
-              />
-            </div>
-          </div>
-          <button onClick={addOrEdit} style={{
-            fontFamily: "Inter", fontWeight: 600, fontSize: 14, padding: "10px 16px", minHeight: 40,
-            background: T.primary, color: "white", border: "none", borderRadius: 8, cursor: "pointer", boxShadow: T.shadow,
-          }}>
-            {editMonth !== null ? "Update" : "Log Month"}
-          </button>
-          {editMonth !== null && (
-            <button onClick={() => { setEditMonth(null); setInputExtra(""); setInputLumpSum(""); }} style={{
-              fontFamily: "Inter", fontSize: 14, fontWeight: 500, padding: "10px 16px", minHeight: 40,
-              background: T.card, color: T.textSecondary, border: `1px solid ${T.border}`, borderRadius: 8, cursor: "pointer",
-            }}>Cancel</button>
-          )}
+        <div style={{ display: "flex", border: `1px solid ${T.border}`, borderRadius: 8, padding: 4, background: T.bgSubtle, marginBottom: 20, width: "fit-content" }}>
+          {["Monthly payments", "Lump Sum Records"].map((label, i) => (
+            <button key={label} onClick={() => setLogTab(i)} style={{
+              fontFamily: "Inter", fontWeight: 600, fontSize: 13, padding: "8px 16px", borderRadius: 6,
+              border: "none", cursor: "pointer", background: logTab === i ? T.card : "transparent",
+              color: logTab === i ? T.primary : T.textSecondary, boxShadow: logTab === i ? T.shadow : "none",
+            }}>{label}</button>
+          ))}
         </div>
+        <button onClick={() => { setEditEntryMonth(null); setModalOpen(true); }} style={{
+          fontFamily: "Inter", fontWeight: 600, fontSize: 14, padding: "10px 20px", marginBottom: 20,
+          background: T.primary, color: "white", border: "none", borderRadius: 8, cursor: "pointer", boxShadow: T.shadow,
+        }}>Add month</button>
 
-        {/* Table */}
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "Inter", fontSize: 14 }}>
-            <thead>
-              <tr>
-                {["Month", "Date", "Required", "Target Extra", "Actual Extra", "Lump Sum", "Variance", "Status", ""].map(h => (
-                  <th key={h} style={{ padding: "16px 24px", textAlign: "right", color: T.textTertiary, borderBottom: `1px solid ${T.borderLight}`, fontWeight: 500, fontSize: 12 }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {Array.from({ length: Math.max(entries.length + 1, 6) }, (_, i) => {
-                const entry = entries[i];
-                const hasData = entry !== undefined;
-                const variance = hasData ? entry.extra - extraTarget : null;
-                const status = !hasData ? "—" : variance >= 0 ? "✓ On track" : "✗ Short";
-                return (
-                  <tr key={i} style={{ background: i % 2 === 0 ? "transparent" : T.bgSubtle }}>
-                    <td style={getTdStyle(T)}>{i + 1}</td>
-                    <td style={getTdStyle(T)}>{startYearMonth(i)}</td>
-                    <td style={getTdStyle(T)}>{fmtZAR(basePayment, "track-table")}</td>
-                    <td style={{ ...getTdStyle(T), color: T.blue }}>{fmtZAR(extraTarget, "track-table")}</td>
-                    <td style={{ ...getTdStyle(T), color: hasData ? T.primary : T.textTertiary }}>
-                      {hasData ? fmtZAR(entry.extra, "track-table") : "—"}
-                    </td>
-                    <td style={{ ...getTdStyle(T), color: hasData && (entry.lumpSum ?? 0) > 0 ? T.orange : T.textTertiary }}>
-                      {hasData && (entry.lumpSum ?? 0) > 0 ? fmtZAR(entry.lumpSum, "track-table") : "—"}
-                    </td>
-                    <td style={{ ...getTdStyle(T), color: variance === null ? T.textTertiary : variance >= 0 ? T.green : T.red }}>
-                      {variance === null ? "—" : (variance >= 0 ? "+" : "") + fmtZAR(variance, "track-table")}
-                    </td>
-                    <td style={{ ...getTdStyle(T), color: !hasData ? T.textTertiary : variance >= 0 ? T.green : T.red, textAlign: "right" }}>{status}</td>
-                    <td style={{ padding: "16px 24px", textAlign: "right" }}>
-                      {hasData && (
-                        <button onClick={() => { setEditMonth(i); setInputExtra(entry.extra === 0 ? "" : String(entry.extra ?? "")); setInputLumpSum(entry.lumpSum === 0 ? "" : String(entry.lumpSum ?? "")); }}
-                          style={{ fontFamily: "Inter", fontSize: 12, padding: "6px 12px", background: T.card, border: `1px solid ${T.border}`, borderRadius: 8, color: T.textSecondary, cursor: "pointer" }}>
-                          edit
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <CaptureMonthModal open={modalOpen} onClose={() => { setModalOpen(false); setEditEntryMonth(null); }} onCapture={addOrUpdateEntry}
+          basePayment={basePayment} startDate={startDate} maxMonth={maxMonth}
+          existingEntry={editEntryMonth != null ? entriesByMonth[editEntryMonth] : null}
+          nextUncapturedMonth={nextUncapturedMonth} />
+
+        {logTab === 0 ? (
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "Inter", fontSize: 14 }}>
+              <thead>
+                <tr>
+                  {["Month", "Date", "Bond Repayment", "Extra", "Lump Sum", "Total Paid", "Variance", "Status", ""].map(h => (
+                    <th key={h} style={{ padding: "16px 24px", textAlign: "right", color: T.textTertiary, borderBottom: `1px solid ${T.borderLight}`, fontWeight: 500, fontSize: 12 }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {sortedEntries.length === 0 ? (
+                  <tr><td colSpan={9} style={{ padding: 24, color: T.textTertiary, textAlign: "center" }}>No captured months. Click "Add month" to capture.</td></tr>
+                ) : (
+                  sortedEntries.map((entry, i) => {
+                    const variance = (entry.extra ?? 0) - extraTarget;
+                    const status = variance >= 0 ? "✓ On track" : "✗ Short";
+                    const totalPaid = (entry.bondRepayment ?? basePayment) + (entry.extra ?? 0);
+                    return (
+                      <tr key={entry.month} style={{ background: i % 2 === 0 ? "transparent" : T.bgSubtle }}>
+                        <td style={getTdStyle(T)}>{entry.month}</td>
+                        <td style={getTdStyle(T)}>{startYearMonth(entry.month - 1)}</td>
+                        <td style={getTdStyle(T)}>{fmtZAR(entry.bondRepayment ?? basePayment, "track-table")}</td>
+                        <td style={{ ...getTdStyle(T), color: T.primary }}>{fmtZAR(entry.extra ?? 0, "track-table")}</td>
+                        <td style={{ ...getTdStyle(T), color: (entry.lumpSum ?? 0) > 0 ? T.orange : T.textTertiary }}>
+                          {(entry.lumpSum ?? 0) > 0 ? fmtZAR(entry.lumpSum, "track-table") : "—"}
+                        </td>
+                        <td style={getTdStyle(T)}>{fmtZAR(totalPaid, "track-table")}</td>
+                        <td style={{ ...getTdStyle(T), color: variance >= 0 ? T.green : T.red }}>
+                          {(variance >= 0 ? "+" : "") + fmtZAR(variance, "track-table")}
+                        </td>
+                        <td style={{ ...getTdStyle(T), color: variance >= 0 ? T.green : T.red, textAlign: "right" }}>{status}</td>
+                        <td style={{ padding: "16px 24px", textAlign: "right" }}>
+                          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                            <button onClick={() => { setEditEntryMonth(entry.month); setModalOpen(true); }}
+                              style={{ fontFamily: "Inter", fontSize: 12, padding: "6px 12px", background: T.card, border: `1px solid ${T.border}`, borderRadius: 8, color: T.textSecondary, cursor: "pointer" }}>Edit</button>
+                            <button onClick={() => removeEntry(entry.month)}
+                              style={{ fontFamily: "Inter", fontSize: 12, padding: "6px 12px", background: "transparent", border: `1px solid ${T.border}`, borderRadius: 8, color: T.red, cursor: "pointer" }}>Remove</button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "Inter", fontSize: 14 }}>
+              <thead>
+                <tr>
+                  {["Month", "Date", "Amount", "Cumulative Lump Sum"].map(h => (
+                    <th key={h} style={{ padding: "16px 24px", textAlign: "right", color: T.textTertiary, borderBottom: `1px solid ${T.borderLight}`, fontWeight: 500, fontSize: 12 }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {lumpSumRecords.length === 0 ? (
+                  <tr><td colSpan={4} style={{ padding: 24, color: T.textTertiary, textAlign: "center" }}>No lump sum payments yet. Add lump sums when capturing a month.</td></tr>
+                ) : (
+                  lumpSumRecords.map((r, i) => (
+                    <tr key={r.month} style={{ background: i % 2 === 0 ? "transparent" : T.bgSubtle }}>
+                      <td style={getTdStyle(T)}>{r.month}</td>
+                      <td style={getTdStyle(T)}>{startYearMonth(r.month - 1)}</td>
+                      <td style={{ ...getTdStyle(T), color: T.orange }}>{fmtZAR(r.amount, "track-table")}</td>
+                      <td style={getTdStyle(T)}>{fmtZAR(r.cumulative, "track-table")}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
       </ChartCard>
 
       {/* Extra paid bar chart */}
@@ -918,7 +1005,7 @@ function TrackerTab({ params }) {
           </button>
         }>
           <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={entries.map((e, i) => ({ month: i + 1, actual: e?.extra ?? 0, target: extraTarget }))} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+            <BarChart data={sortedEntries.map(e => ({ month: e.month, actual: e.extra ?? 0, target: extraTarget }))} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke={T.borderLight} />
               <XAxis dataKey="month" stroke={T.border} tick={{ fontFamily: "Inter", fontSize: 12, fill: T.textTertiary }} tickFormatter={v => `M${v}`} />
               <YAxis stroke={T.border} tick={{ fontFamily: "Inter", fontSize: 12, fill: T.textTertiary }} tickFormatter={v => fmtShortZAR(v, "track-bar-chart")} width={60} />
