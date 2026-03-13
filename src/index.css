@@ -1,3 +1,28 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Base reset (preflight disabled - minimal layout foundations) */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+html {
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+}
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+}
+#root {
+  min-height: 100vh;
+}
+table {
+  border-collapse: collapse;
+}
+
 /* Remove number input spinners (up/down arrows) */
 input[type="number"]::-webkit-outer-spin-button,
 input[type="number"]::-webkit-inner-spin-button {

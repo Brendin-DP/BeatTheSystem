@@ -1,4 +1,5 @@
 import { useState, useMemo, createContext, useContext, useEffect } from "react";
+import { Eye, EyeOff } from "lucide-react";
 import {
   LineChart, Line, AreaChart, Area, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine
@@ -44,15 +45,57 @@ const C_DARK = {
   shadow: "0px 1px 2px rgba(0,0,0,0.3)",
 };
 
+// ── Total IDs for per-field visibility ─────────────────────────────────────────
+const ALL_TOTAL_IDS = [
+  "header-principal", "sim-base-monthly", "sim-with-extra", "sim-lump-sum", "sim-payoff",
+  "sim-total-interest", "sim-total-cost", "sim-interest-saved", "sim-chart-balance",
+  "sim-chart-split", "sim-amortization-table",
+  "track-months-tracked", "track-avg-extra", "track-total-extra", "track-total-lump-sum",
+  "track-extra-vs-target", "track-chart", "track-table", "track-bar-chart",
+  "rate-current-payment", "rate-new-payment", "rate-monthly-saving", "rate-balance",
+  "rate-total-interest", "rate-chart",
+];
+
 // ── Theme context ──────────────────────────────────────────────────────────────
-const ThemeContext = createContext({ theme: "light", setTheme: () => {}, tokens: C });
+const defaultVisible = () => {
+  try {
+    const saved = localStorage.getItem("bond-visible-totals");
+    if (saved) return JSON.parse(saved);
+  } catch (_) {}
+  return {};
+};
+
+const ThemeContext = createContext({
+  theme: "light", setTheme: () => {}, tokens: C,
+  visibleTotals: {}, setVisibleTotal: () => {}, toggleTotal: () => {}, viewAll: () => {}, hideAll: () => {},
+  isVisible: () => false, fmtZAR: (n) => "", fmtShortZAR: (n) => "",
+});
 
 function ThemeProvider({ children }) {
   const [theme, setTheme] = useState(() => localStorage.getItem("bond-theme") || "light");
+  const [visibleTotals, setVisibleTotals] = useState(defaultVisible);
   const tokens = theme === "dark" ? C_DARK : C;
+
   useEffect(() => { localStorage.setItem("bond-theme", theme); }, [theme]);
+  useEffect(() => { try { localStorage.setItem("bond-visible-totals", JSON.stringify(visibleTotals)); } catch (_) {} }, [visibleTotals]);
+
+  const isVisible = (id) => !!visibleTotals[id];
+  const setVisibleTotal = (id, visible) => setVisibleTotals(v => ({ ...v, [id]: visible }));
+  const toggleTotal = (id) => setVisibleTotal(id, !isVisible(id));
+  const viewAll = () => setVisibleTotals(ALL_TOTAL_IDS.reduce((a, id) => ({ ...a, [id]: true }), {}));
+  const hideAll = () => setVisibleTotals({});
+
+  const fmtZAR = useMemo(() => (n, totalId) => {
+    if (totalId && !visibleTotals[totalId]) return "••••";
+    return fmtZARRaw(n);
+  }, [visibleTotals]);
+  const fmtShortZAR = useMemo(() => (n, totalId) => {
+    if (totalId && !visibleTotals[totalId]) return "••••";
+    return fmtShortZARRaw(n);
+  }, [visibleTotals]);
+
   return (
-    <ThemeContext.Provider value={{ theme, setTheme, tokens }}>
+    <ThemeContext.Provider value={{ theme, setTheme, tokens, visibleTotals, setVisibleTotal, toggleTotal, viewAll, hideAll, isVisible, fmtZAR, fmtShortZAR }}>
       {children}
     </ThemeContext.Provider>
   );
@@ -104,11 +147,11 @@ function buildAmortization(principal, annualRate, months, extraMonthly = 0, lump
   return rows;
 }
 
-function fmtZAR(n) {
+function fmtZARRaw(n) {
   if (n === undefined || n === null || isNaN(n)) return "—";
   return "R " + Math.round(n).toLocaleString("en-ZA");
 }
-function fmtShortZAR(n) {
+function fmtShortZARRaw(n) {
   if (n >= 1_000_000) return `R${(n / 1_000_000).toFixed(2)}m`;
   if (n >= 1_000) return `R${(n / 1_000).toFixed(0)}k`;
   return `R${Math.round(n)}`;
@@ -119,20 +162,33 @@ function monthsToYearsMonths(m) {
   return y > 0 ? `${y}y ${mo}m` : `${mo}m`;
 }
 
-// ── Stat card ─────────────────────────────────────────────────────────────────
-function Stat({ label, value, sub, accent, diff }) {
-  const { tokens: T } = useTheme();
+// ── Stat card (with per-total eye) ─────────────────────────────────────────────
+function Stat({ label, value, sub, accent, diff, totalId }) {
+  const { tokens: T, fmtZAR, isVisible, toggleTotal } = useTheme();
+  const revealed = !totalId || isVisible(totalId);
+  const displayValue = revealed ? value : "••••";
   return (
     <div style={{
       background: T.card, border: `1px solid ${T.border}`, borderRadius: 8, boxShadow: T.shadow,
       padding: "20px 24px", display: "flex", flexDirection: "column", gap: 6,
     }}>
-      <span style={{ fontSize: 12, fontWeight: 500, color: T.textTertiary, fontFamily: "Inter" }}>{label}</span>
-      <span style={{ fontSize: 26, fontWeight: 600, color: accent ? T.primary : T.text, fontFamily: "Inter", lineHeight: 1 }}>{value}</span>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+        <span style={{ fontSize: 12, fontWeight: 500, color: T.textTertiary, fontFamily: "Inter" }}>{label}</span>
+        {totalId && (
+          <button
+            onClick={() => toggleTotal(totalId)}
+            title={revealed ? "Hide" : "Reveal"}
+            style={{ display: "flex", padding: 4, background: "transparent", border: "none", cursor: "pointer", color: T.textTertiary }}
+          >
+            {revealed ? <Eye size={16} /> : <EyeOff size={16} />}
+          </button>
+        )}
+      </div>
+      <span style={{ fontSize: 26, fontWeight: 600, color: accent ? T.primary : T.text, fontFamily: "Inter", lineHeight: 1 }}>{displayValue}</span>
       {sub && <span style={{ fontSize: 14, color: T.textSecondary, fontFamily: "Inter" }}>{sub}</span>}
       {diff !== undefined && (
         <span style={{ fontSize: 14, color: diff < 0 ? T.green : T.red, fontFamily: "Inter" }}>
-          {diff < 0 ? `↓ saves ${fmtZAR(Math.abs(diff))}` : `↑ costs ${fmtZAR(diff)} more`}
+          {diff < 0 ? `↓ saves ${fmtZAR(Math.abs(diff), totalId)}` : `↑ costs ${fmtZAR(diff, totalId)} more`}
         </span>
       )}
     </div>
@@ -140,15 +196,15 @@ function Stat({ label, value, sub, accent, diff }) {
 }
 
 // ── Custom tooltip ────────────────────────────────────────────────────────────
-function ChartTip({ active, payload, label }) {
-  const { tokens: T } = useTheme();
+function ChartTip({ active, payload, label, chartId }) {
+  const { tokens: T, fmtZAR } = useTheme();
   if (!active || !payload?.length) return null;
   return (
     <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 8, padding: "10px 14px", boxShadow: T.shadow, fontFamily: "Inter", fontSize: 14 }}>
       <div style={{ color: T.textTertiary, marginBottom: 6 }}>Month {label}</div>
       {payload.map((p, i) => (
         <div key={i} style={{ color: p.color, marginBottom: 2 }}>
-          {p.name}: {fmtZAR(p.value)}
+          {p.name}: {fmtZAR(p.value, chartId)}
         </div>
       ))}
     </div>
@@ -159,7 +215,7 @@ function ChartTip({ active, payload, label }) {
 // TAB 1 — SIMULATOR
 // ══════════════════════════════════════════════════════════════════════════════
 function SimulatorTab({ params, setParams }) {
-  const { tokens: T } = useTheme();
+  const { tokens: T, fmtZAR, fmtShortZAR, isVisible, toggleTotal } = useTheme();
   const [extra, setExtra] = useState(0);
   const [lumpSumEntries, setLumpSumEntries] = useState([]);
   const [scheduleTab, setScheduleTab] = useState(0);
@@ -253,29 +309,38 @@ function SimulatorTab({ params, setParams }) {
 
       {/* ── Interest saved hero card ── */}
       {(extra > 0 || hasLumpSums) && interestSaved > 0 && (
-        <div style={{ background: T.primary, color: "white", borderRadius: 8, padding: 24, boxShadow: T.shadow }}>
-          <div style={{ fontSize: 12, fontWeight: 500, opacity: 0.9, marginBottom: 4 }}>INTEREST SAVED</div>
-          <div style={{ fontSize: 28, fontWeight: 700 }}>{fmtZAR(interestSaved)}</div>
+        <div style={{ background: T.primary, color: "white", borderRadius: 8, padding: 24, boxShadow: T.shadow, position: "relative" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+            <div style={{ fontSize: 12, fontWeight: 500, opacity: 0.9, marginBottom: 4 }}>INTEREST SAVED</div>
+            <button onClick={() => toggleTotal("sim-interest-saved")} style={{ background: "transparent", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.9)" }}>
+              {isVisible("sim-interest-saved") ? <Eye size={18} /> : <EyeOff size={18} />}
+            </button>
+          </div>
+          <div style={{ fontSize: 28, fontWeight: 700 }}>{fmtZAR(interestSaved, "sim-interest-saved")}</div>
           <div style={{ fontSize: 14, opacity: 0.9 }}>
-            {extra > 0 && hasLumpSums && `+${fmtZAR(extra)}/mo + ${fmtZAR(totalLumpSum)} lump sum(s)`}
-            {extra > 0 && !hasLumpSums && `By paying +${fmtZAR(extra)}/month extra`}
-            {extra <= 0 && hasLumpSums && `${fmtZAR(totalLumpSum)} lump sum(s) to principal`}
+            {extra > 0 && hasLumpSums && `+${fmtZAR(extra, "sim-interest-saved")}/mo + ${fmtZAR(totalLumpSum, "sim-interest-saved")} lump sum(s)`}
+            {extra > 0 && !hasLumpSums && `By paying +${fmtZAR(extra, "sim-interest-saved")}/month extra`}
+            {extra <= 0 && hasLumpSums && `${fmtZAR(totalLumpSum, "sim-interest-saved")} lump sum(s) to principal`}
           </div>
         </div>
       )}
 
       {/* ── Stats row ── */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 14 }}>
-        <Stat label="Base Monthly" value={fmtZAR(basePayment)} sub="required payment" />
-        <Stat label="With Extra" value={fmtZAR(basePayment + extra)} sub={extra > 0 ? `+${fmtZAR(extra)} extra` : "no extra"} accent={extra > 0} />
-        <Stat label="Lump Sum" value={hasLumpSums ? fmtZAR(totalLumpSum) : "—"} sub={hasLumpSums ? `${lumpSumEntries.filter(e => e.amount > 0).length} entry(ies)` : "none"} accent={hasLumpSums} />
-        <Stat label="Payoff" value={monthsToYearsMonths(withExtra.length)} sub={(extra > 0 || hasLumpSums) ? `saves ${monthsToYearsMonths(monthsSaved)}` : `${withExtra.length} months`} accent={extra > 0 || hasLumpSums} />
-        <Stat label="Total Interest" value={fmtShortZAR(extraTotalInterest)} diff={(extra > 0 || hasLumpSums) ? -interestSaved : undefined} />
-        <Stat label="Total Cost" value={fmtShortZAR(params.principal + extraTotalInterest)} sub="principal + interest" />
+        <Stat label="Base Monthly" value={fmtZAR(basePayment, "sim-base-monthly")} sub="required payment" totalId="sim-base-monthly" />
+        <Stat label="With Extra" value={fmtZAR(basePayment + extra, "sim-with-extra")} sub={extra > 0 ? `+${fmtZAR(extra, "sim-with-extra")} extra` : "no extra"} accent={extra > 0} totalId="sim-with-extra" />
+        <Stat label="Lump Sum" value={hasLumpSums ? fmtZAR(totalLumpSum, "sim-lump-sum") : "—"} sub={hasLumpSums ? `${lumpSumEntries.filter(e => e.amount > 0).length} entry(ies)` : "none"} accent={hasLumpSums} totalId="sim-lump-sum" />
+        <Stat label="Payoff" value={monthsToYearsMonths(withExtra.length)} sub={(extra > 0 || hasLumpSums) ? `saves ${monthsToYearsMonths(monthsSaved)}` : `${withExtra.length} months`} accent={extra > 0 || hasLumpSums} totalId="sim-payoff" />
+        <Stat label="Total Interest" value={fmtShortZAR(extraTotalInterest, "sim-total-interest")} diff={(extra > 0 || hasLumpSums) ? -interestSaved : undefined} totalId="sim-total-interest" />
+        <Stat label="Total Cost" value={fmtShortZAR(params.principal + extraTotalInterest, "sim-total-cost")} sub="principal + interest" totalId="sim-total-cost" />
       </div>
 
       {/* ── Balance chart ── */}
-      <ChartCard title="Remaining Balance Over Time">
+      <ChartCard title="Remaining Balance Over Time" titleAction={
+        <button onClick={() => toggleTotal("sim-chart-balance")} title={isVisible("sim-chart-balance") ? "Hide" : "Reveal"} style={{ display: "flex", padding: 4, background: "transparent", border: "none", cursor: "pointer", color: T.textTertiary }}>
+          {isVisible("sim-chart-balance") ? <Eye size={18} /> : <EyeOff size={18} />}
+        </button>
+      }>
         <ResponsiveContainer width="100%" height={300}>
           <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
             <defs>
@@ -292,15 +357,15 @@ function SimulatorTab({ params, setParams }) {
             <XAxis dataKey="month" stroke={T.border} tick={{ fontFamily: "Inter", fontSize: 12, fill: T.textTertiary }}
               tickFormatter={v => `M${v}`} />
             <YAxis stroke={T.border} tick={{ fontFamily: "Inter", fontSize: 12, fill: T.textTertiary }}
-              tickFormatter={fmtShortZAR} width={60} />
-            <Tooltip content={<ChartTip />} />
+              tickFormatter={v => fmtShortZAR(v, "sim-chart-balance")} width={60} />
+            <Tooltip content={<ChartTip chartId="sim-chart-balance" />} />
             <Legend wrapperStyle={{ fontFamily: "Inter", fontSize: 12, color: T.textSecondary }} />
             <Area type="monotone" dataKey="base" name="Base (no extra)" stroke={T.blue} fill="url(#baseGrad)" strokeWidth={2} dot={false} />
             {(extra > 0 || hasLumpSums) && (
               <Area
                 type="monotone"
                 dataKey="extra"
-                name={extra > 0 && hasLumpSums ? `+${fmtZAR(extra)}/mo + lump` : extra > 0 ? `+${fmtZAR(extra)}/mo` : `${fmtZAR(totalLumpSum)} lump sum(s)`}
+                name={extra > 0 && hasLumpSums ? `+${fmtZAR(extra, "sim-chart-balance")}/mo + lump` : extra > 0 ? `+${fmtZAR(extra, "sim-chart-balance")}/mo` : `${fmtZAR(totalLumpSum, "sim-chart-balance")} lump sum(s)`}
                 stroke={T.primary}
                 fill="url(#extraGrad)"
                 strokeWidth={2}
@@ -312,15 +377,19 @@ function SimulatorTab({ params, setParams }) {
       </ChartCard>
 
       {/* ── Interest split chart ── */}
-      <ChartCard title="Monthly Interest vs Principal (Base Loan)">
+      <ChartCard title="Monthly Interest vs Principal (Base Loan)" titleAction={
+        <button onClick={() => toggleTotal("sim-chart-split")} title={isVisible("sim-chart-split") ? "Hide" : "Reveal"} style={{ display: "flex", padding: 4, background: "transparent", border: "none", cursor: "pointer", color: T.textTertiary }}>
+          {isVisible("sim-chart-split") ? <Eye size={18} /> : <EyeOff size={18} />}
+        </button>
+      }>
         <ResponsiveContainer width="100%" height={260}>
           <BarChart data={splitData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke={T.borderLight} />
             <XAxis dataKey="month" stroke={T.border} tick={{ fontFamily: "Inter", fontSize: 12, fill: T.textTertiary }}
               tickFormatter={v => `M${v}`} />
             <YAxis stroke={T.border} tick={{ fontFamily: "Inter", fontSize: 12, fill: T.textTertiary }}
-              tickFormatter={fmtShortZAR} width={60} />
-            <Tooltip content={<ChartTip />} />
+              tickFormatter={v => fmtShortZAR(v, "sim-chart-split")} width={60} />
+            <Tooltip content={<ChartTip chartId="sim-chart-split" />} />
             <Legend wrapperStyle={{ fontFamily: "Inter", fontSize: 12, color: T.textSecondary }} />
             <Bar dataKey="interest" name="Interest" stackId="a" fill={T.red} />
             <Bar dataKey="principal" name="Principal" stackId="a" fill={T.primary} radius={[3, 3, 0, 0]} />
@@ -329,7 +398,11 @@ function SimulatorTab({ params, setParams }) {
       </ChartCard>
 
       {/* ── Amortization / Lump Sum (tabbed) ── */}
-      <ChartCard title={scheduleTab === 0 ? `Amortization Schedule${extra > 0 || hasLumpSums ? ` (with +${fmtZAR(extra)}/mo${hasLumpSums ? ` + ${fmtZAR(totalLumpSum)} lump` : ""})` : ""}` : "Lump Sum Payments"}>
+      <ChartCard title={scheduleTab === 0 ? `Amortization Schedule${extra > 0 || hasLumpSums ? ` (with +${fmtZAR(extra, "sim-amortization-table")}/mo${hasLumpSums ? ` + ${fmtZAR(totalLumpSum, "sim-amortization-table")} lump` : ""})` : ""}` : "Lump Sum Payments"} titleAction={scheduleTab === 0 && (
+          <button onClick={() => toggleTotal("sim-amortization-table")} title={isVisible("sim-amortization-table") ? "Hide table" : "Reveal table"} style={{ display: "flex", padding: 4, background: "transparent", border: "none", cursor: "pointer", color: T.textTertiary }}>
+            {isVisible("sim-amortization-table") ? <Eye size={18} /> : <EyeOff size={18} />}
+          </button>
+        )}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 12 }}>
           <div style={{ display: "flex", border: `1px solid ${T.border}`, borderRadius: 8, padding: 4, background: T.bgSubtle }}>
             {["Amortization", "Lump Sum"].map((label, i) => (
@@ -382,12 +455,12 @@ function SimulatorTab({ params, setParams }) {
                 {withExtra.map((r, i) => (
                   <tr key={r.month} style={{ background: i % 2 === 0 ? "transparent" : T.bgSubtle }}>
                     <td style={getTdStyle(T)}>{r.month}</td>
-                    <td style={getTdStyle(T)}>{fmtZAR(r.payment)}</td>
-                    <td style={{ ...getTdStyle(T), color: T.primary }}>{fmtZAR(r.principal)}</td>
-                    <td style={{ ...getTdStyle(T), color: T.red }}>{fmtZAR(r.interest)}</td>
-                    <td style={{ ...getTdStyle(T), color: T.orange }}>{r.extra > 0 ? fmtZAR(r.extra) : "—"}</td>
-                    <td style={{ ...getTdStyle(T), color: (r.lumpSum ?? 0) > 0 ? T.orange : T.textTertiary }}>{(r.lumpSum ?? 0) > 0 ? fmtZAR(r.lumpSum) : "—"}</td>
-                    <td style={getTdStyle(T)}>{fmtZAR(r.balance)}</td>
+                    <td style={getTdStyle(T)}>{fmtZAR(r.payment, "sim-amortization-table")}</td>
+                    <td style={{ ...getTdStyle(T), color: T.primary }}>{fmtZAR(r.principal, "sim-amortization-table")}</td>
+                    <td style={{ ...getTdStyle(T), color: T.red }}>{fmtZAR(r.interest, "sim-amortization-table")}</td>
+                    <td style={{ ...getTdStyle(T), color: T.orange }}>{r.extra > 0 ? fmtZAR(r.extra, "sim-amortization-table") : "—"}</td>
+                    <td style={{ ...getTdStyle(T), color: (r.lumpSum ?? 0) > 0 ? T.orange : T.textTertiary }}>{(r.lumpSum ?? 0) > 0 ? fmtZAR(r.lumpSum, "sim-amortization-table") : "—"}</td>
+                    <td style={getTdStyle(T)}>{fmtZAR(r.balance, "sim-amortization-table")}</td>
                   </tr>
                 ))}
               </tbody>
@@ -616,7 +689,7 @@ function ExtraPaymentControl({ value, onChange }) {
 // TAB 2 — REALITY TRACKER
 // ══════════════════════════════════════════════════════════════════════════════
 function TrackerTab({ params }) {
-  const { tokens: T } = useTheme();
+  const { tokens: T, fmtZAR, fmtShortZAR, isVisible, toggleTotal } = useTheme();
   const [startDate, setStartDate] = useState("2025-01");
   const [extraTarget, setExtraTarget] = useState(2000);
   const [entries, setEntries] = useState([]);
@@ -696,26 +769,30 @@ function TrackerTab({ params }) {
 
       {/* Stats */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 16 }}>
-        <Stat label="Months Tracked" value={trackedMonths} sub={`of ${projected.length} projected`} />
-        <Stat label="Avg Extra Paid" value={fmtZAR(avgActual)} sub={`target: ${fmtZAR(extraTarget)}`} accent={avgActual >= extraTarget} />
-        <Stat label="Total Extra Paid" value={fmtShortZAR(totalExtraActual)} sub={`target: ${fmtShortZAR(extraTarget * trackedMonths)}`} />
-        <Stat label="Total Lump Sum" value={fmtShortZAR(totalLumpSumActual)} sub="to principal" accent={totalLumpSumActual > 0} />
-        <Stat label="Extra vs Target" value={totalExtraActual >= extraTarget * trackedMonths ? "On track ✓" : "Behind"} accent={totalExtraActual >= extraTarget * trackedMonths} />
+        <Stat label="Months Tracked" value={trackedMonths} sub={`of ${projected.length} projected`} totalId="track-months-tracked" />
+        <Stat label="Avg Extra Paid" value={fmtZAR(avgActual, "track-avg-extra")} sub={`target: ${fmtZAR(extraTarget, "track-avg-extra")}`} accent={avgActual >= extraTarget} totalId="track-avg-extra" />
+        <Stat label="Total Extra Paid" value={fmtShortZAR(totalExtraActual, "track-total-extra")} sub={`target: ${fmtShortZAR(extraTarget * trackedMonths, "track-total-extra")}`} totalId="track-total-extra" />
+        <Stat label="Total Lump Sum" value={fmtShortZAR(totalLumpSumActual, "track-total-lump-sum")} sub="to principal" accent={totalLumpSumActual > 0} totalId="track-total-lump-sum" />
+        <Stat label="Extra vs Target" value={totalExtraActual >= extraTarget * trackedMonths ? "On track ✓" : "Behind"} accent={totalExtraActual >= extraTarget * trackedMonths} totalId="track-extra-vs-target" />
       </div>
 
       {/* Balance comparison chart */}
-      <ChartCard title="Balance: Projected vs Actual vs No-Extra">
+      <ChartCard title="Balance: Projected vs Actual vs No-Extra" titleAction={
+        <button onClick={() => toggleTotal("track-chart")} title={isVisible("track-chart") ? "Hide chart" : "Reveal chart"} style={{ display: "flex", padding: 4, background: "transparent", border: "none", cursor: "pointer", color: T.textTertiary }}>
+          {isVisible("track-chart") ? <Eye size={18} /> : <EyeOff size={18} />}
+        </button>
+      }>
         <ResponsiveContainer width="100%" height={300}>
           <LineChart data={chartData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke={T.borderLight} />
             <XAxis dataKey="month" stroke={T.border} tick={{ fontFamily: "Inter", fontSize: 12, fill: T.textTertiary }}
               tickFormatter={v => `M${v}`} />
             <YAxis stroke={T.border} tick={{ fontFamily: "Inter", fontSize: 12, fill: T.textTertiary }}
-              tickFormatter={fmtShortZAR} width={60} />
-            <Tooltip content={<ChartTip />} />
+              tickFormatter={v => fmtShortZAR(v, "track-chart")} width={60} />
+            <Tooltip content={<ChartTip chartId="track-chart" />} />
             <Legend wrapperStyle={{ fontFamily: "Inter", fontSize: 12, color: T.textSecondary }} />
             <Line type="monotone" dataKey="base" name="No Extra" stroke={T.textTertiary} strokeWidth={1.5} dot={false} strokeDasharray="4 4" />
-            <Line type="monotone" dataKey="projected" name={`Projected (+${fmtZAR(extraTarget)}/mo)`} stroke={T.blue} strokeWidth={2} dot={false} />
+            <Line type="monotone" dataKey="projected" name={`Projected (+${fmtZAR(extraTarget, "track-chart")}/mo)`} stroke={T.blue} strokeWidth={2} dot={false} />
             <Line type="monotone" dataKey="actual" name="Actual" stroke={T.primary} strokeWidth={2.5}
               dot={(props) => {
                 const { cx, cy, value } = props;
@@ -728,7 +805,11 @@ function TrackerTab({ params }) {
       </ChartCard>
 
       {/* Monthly log */}
-      <ChartCard title="Monthly Extra Payment Log">
+      <ChartCard title="Monthly Extra Payment Log" titleAction={
+        <button onClick={() => toggleTotal("track-table")} title={isVisible("track-table") ? "Hide table" : "Reveal table"} style={{ display: "flex", padding: 4, background: "transparent", border: "none", cursor: "pointer", color: T.textTertiary }}>
+          {isVisible("track-table") ? <Eye size={18} /> : <EyeOff size={18} />}
+        </button>
+      }>
         <div style={{ display: "flex", gap: 12, marginBottom: 20, flexWrap: "wrap", alignItems: "flex-end" }}>
           <div>
             <label style={{ fontFamily: "Inter", fontSize: 14, fontWeight: 500, color: T.textSecondary, display: "block", marginBottom: 6 }}>
@@ -795,16 +876,16 @@ function TrackerTab({ params }) {
                   <tr key={i} style={{ background: i % 2 === 0 ? "transparent" : T.bgSubtle }}>
                     <td style={getTdStyle(T)}>{i + 1}</td>
                     <td style={getTdStyle(T)}>{startYearMonth(i)}</td>
-                    <td style={getTdStyle(T)}>{fmtZAR(basePayment)}</td>
-                    <td style={{ ...getTdStyle(T), color: T.blue }}>{fmtZAR(extraTarget)}</td>
+                    <td style={getTdStyle(T)}>{fmtZAR(basePayment, "track-table")}</td>
+                    <td style={{ ...getTdStyle(T), color: T.blue }}>{fmtZAR(extraTarget, "track-table")}</td>
                     <td style={{ ...getTdStyle(T), color: hasData ? T.primary : T.textTertiary }}>
-                      {hasData ? fmtZAR(entry.extra) : "—"}
+                      {hasData ? fmtZAR(entry.extra, "track-table") : "—"}
                     </td>
                     <td style={{ ...getTdStyle(T), color: hasData && (entry.lumpSum ?? 0) > 0 ? T.orange : T.textTertiary }}>
-                      {hasData && (entry.lumpSum ?? 0) > 0 ? fmtZAR(entry.lumpSum) : "—"}
+                      {hasData && (entry.lumpSum ?? 0) > 0 ? fmtZAR(entry.lumpSum, "track-table") : "—"}
                     </td>
                     <td style={{ ...getTdStyle(T), color: variance === null ? T.textTertiary : variance >= 0 ? T.green : T.red }}>
-                      {variance === null ? "—" : (variance >= 0 ? "+" : "") + fmtZAR(variance)}
+                      {variance === null ? "—" : (variance >= 0 ? "+" : "") + fmtZAR(variance, "track-table")}
                     </td>
                     <td style={{ ...getTdStyle(T), color: !hasData ? T.textTertiary : variance >= 0 ? T.green : T.red, textAlign: "right" }}>{status}</td>
                     <td style={{ padding: "16px 24px", textAlign: "right" }}>
@@ -825,13 +906,17 @@ function TrackerTab({ params }) {
 
       {/* Extra paid bar chart */}
       {entries.length > 0 && (
-        <ChartCard title="Extra Payments: Target vs Actual">
+        <ChartCard title="Extra Payments: Target vs Actual" titleAction={
+          <button onClick={() => toggleTotal("track-bar-chart")} title={isVisible("track-bar-chart") ? "Hide" : "Reveal"} style={{ display: "flex", padding: 4, background: "transparent", border: "none", cursor: "pointer", color: T.textTertiary }}>
+            {isVisible("track-bar-chart") ? <Eye size={18} /> : <EyeOff size={18} />}
+          </button>
+        }>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={entries.map((e, i) => ({ month: i + 1, actual: e?.extra ?? 0, target: extraTarget }))} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke={T.borderLight} />
               <XAxis dataKey="month" stroke={T.border} tick={{ fontFamily: "Inter", fontSize: 12, fill: T.textTertiary }} tickFormatter={v => `M${v}`} />
-              <YAxis stroke={T.border} tick={{ fontFamily: "Inter", fontSize: 12, fill: T.textTertiary }} tickFormatter={fmtShortZAR} width={60} />
-              <Tooltip content={<ChartTip />} />
+              <YAxis stroke={T.border} tick={{ fontFamily: "Inter", fontSize: 12, fill: T.textTertiary }} tickFormatter={v => fmtShortZAR(v, "track-bar-chart")} width={60} />
+              <Tooltip content={<ChartTip chartId="track-bar-chart" />} />
               <Legend wrapperStyle={{ fontFamily: "Inter", fontSize: 12, color: T.textSecondary }} />
               <ReferenceLine y={extraTarget} stroke={T.blue} strokeDasharray="4 4" label={{ value: "Target", fill: T.blue, fontFamily: "Inter", fontSize: 10 }} />
               <Bar dataKey="actual" name="Actual Extra" fill={T.primary} radius={[4, 4, 0, 0]} />
@@ -847,7 +932,7 @@ function TrackerTab({ params }) {
 // RATE CHANGE PANEL
 // ══════════════════════════════════════════════════════════════════════════════
 function RateChangePanel({ params, setParams }) {
-  const { tokens: T } = useTheme();
+  const { tokens: T, fmtZAR, fmtShortZAR, isVisible, toggleTotal } = useTheme();
   const [newRate, setNewRate] = useState(8.9);
   const [atMonth, setAtMonth] = useState(12);
   const [extra, setExtra] = useState(2000);
@@ -886,20 +971,24 @@ function RateChangePanel({ params, setParams }) {
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 16 }}>
-        <Stat label="Current Payment" value={fmtZAR(oldPayment)} sub={`at ${params.rate}%`} />
-        <Stat label="New Payment" value={fmtZAR(newPayment)} sub={`at ${newRate}% from M${atMonth}`} accent />
-        <Stat label="Monthly Saving" value={fmtZAR(saving)} sub="after rate drop" accent={saving > 0} />
-        <Stat label={`Balance at M${atMonth}`} value={fmtShortZAR(balanceAtChange)} sub="when rate changes" />
-        <Stat label="Total Interest" value={fmtShortZAR(totalInterest)} sub="over full term" />
+        <Stat label="Current Payment" value={fmtZAR(oldPayment, "rate-current-payment")} sub={`at ${params.rate}%`} totalId="rate-current-payment" />
+        <Stat label="New Payment" value={fmtZAR(newPayment, "rate-new-payment")} sub={`at ${newRate}% from M${atMonth}`} accent totalId="rate-new-payment" />
+        <Stat label="Monthly Saving" value={fmtZAR(saving, "rate-monthly-saving")} sub="after rate drop" accent={saving > 0} totalId="rate-monthly-saving" />
+        <Stat label={`Balance at M${atMonth}`} value={fmtShortZAR(balanceAtChange, "rate-balance")} sub="when rate changes" totalId="rate-balance" />
+        <Stat label="Total Interest" value={fmtShortZAR(totalInterest, "rate-total-interest")} sub="over full term" totalId="rate-total-interest" />
       </div>
 
-      <ChartCard title="Balance Trajectory with Rate Change">
+      <ChartCard title="Balance Trajectory with Rate Change" titleAction={
+        <button onClick={() => toggleTotal("rate-chart")} title={isVisible("rate-chart") ? "Hide chart" : "Reveal chart"} style={{ display: "flex", padding: 4, background: "transparent", border: "none", cursor: "pointer", color: T.textTertiary }}>
+          {isVisible("rate-chart") ? <Eye size={18} /> : <EyeOff size={18} />}
+        </button>
+      }>
         <ResponsiveContainer width="100%" height={300}>
           <LineChart data={chartData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke={T.borderLight} />
             <XAxis dataKey="month" stroke={T.border} tick={{ fontFamily: "Inter", fontSize: 12, fill: T.textTertiary }} tickFormatter={v => `M${v}`} />
-            <YAxis stroke={T.border} tick={{ fontFamily: "Inter", fontSize: 12, fill: T.textTertiary }} tickFormatter={fmtShortZAR} width={60} />
-            <Tooltip content={<ChartTip />} />
+            <YAxis stroke={T.border} tick={{ fontFamily: "Inter", fontSize: 12, fill: T.textTertiary }} tickFormatter={v => fmtShortZAR(v, "rate-chart")} width={60} />
+            <Tooltip content={<ChartTip chartId="rate-chart" />} />
             <Legend wrapperStyle={{ fontFamily: "Inter", fontSize: 12, color: T.textSecondary }} />
             <ReferenceLine x={atMonth} stroke={T.orange} strokeDasharray="4 4" label={{ value: `Rate → ${newRate}%`, fill: T.orange, fontFamily: "Inter", fontSize: 10 }} />
             <Line type="monotone" dataKey="before" name={`Before (${params.rate}%)`} stroke={T.red} strokeWidth={2} dot={false} connectNulls />
@@ -912,11 +1001,22 @@ function RateChangePanel({ params, setParams }) {
 }
 
 // ── Shared UI ─────────────────────────────────────────────────────────────────
-function ChartCard({ title, children }) {
+function ChartCard({ title, children, titleAction }) {
   const { tokens: T } = useTheme();
   return (
     <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 8, padding: 24, boxShadow: T.shadow }}>
-      <div style={{ fontFamily: "Inter", fontWeight: 600, fontSize: 18, lineHeight: "28px", color: T.text, marginBottom: 20, paddingBottom: 16, borderBottom: `1px solid ${T.borderLight}` }}>{title}</div>
+      <div style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "flex-start",
+        gap: 16,
+        marginBottom: 20,
+        paddingBottom: 16,
+        borderBottom: `1px solid ${T.borderLight}`,
+      }}>
+        <div style={{ fontFamily: "Inter", fontWeight: 600, fontSize: 18, lineHeight: "28px", color: T.text, flex: "1", minWidth: 0 }}>{title}</div>
+        {titleAction && <div style={{ flexShrink: 0 }}>{titleAction}</div>}
+      </div>
       {children}
     </div>
   );
@@ -985,7 +1085,9 @@ const TABS = ["Simulator", "Rate Change", "Reality Tracker"];
 const RATE_PRESETS = [8, 9, 10, 11];
 
 function AppContent() {
-  const { theme, setTheme, tokens: T } = useTheme();
+  const { theme, setTheme, tokens: T, visibleTotals, viewAll, hideAll, fmtShortZAR, isVisible, toggleTotal } = useTheme();
+  const anyVisible = Object.keys(visibleTotals).some(k => visibleTotals[k]);
+  const allVisible = ALL_TOTAL_IDS.every(id => visibleTotals[id]);
   const [tab, setTab] = useState(0);
   const [params, setParams] = useState({
     principal: 2_430_595,
@@ -994,18 +1096,27 @@ function AppContent() {
   });
 
   return (
-    <div style={{ minHeight: "100vh", background: T.bg, color: T.text, fontFamily: "Inter" }}>
-      {/* Header */}
-      <div style={{ borderBottom: `1px solid ${T.borderLight}`, padding: "0 40px" }}>
-        <div style={{ maxWidth: 1100, margin: "0 auto", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, paddingTop: 20, paddingBottom: 20 }}>
+    <div className="min-h-screen w-full" style={{ background: T.bg, color: T.text, fontFamily: "Inter" }}>
+      {/* Header - full width, Untitled UI style */}
+      <div style={{ borderBottom: `1px solid ${T.borderLight}`, padding: "0 24px" }}>
+        <div className="max-w-7xl mx-auto flex justify-between items-center flex-wrap gap-3" style={{ paddingTop: 20, paddingBottom: 20 }}>
           <div>
             <div style={{ fontFamily: "Inter", fontWeight: 600, fontSize: 30, lineHeight: "38px", color: T.text }}>Bond Simulator</div>
-            <div style={{ fontFamily: "Inter", fontSize: 14, color: T.textTertiary }}>
-              R{(params.principal / 1_000_000).toFixed(2)}m · {params.rate}% · {params.term} months
+            <div style={{ display: "flex", alignItems: "center", gap: 8, fontFamily: "Inter", fontSize: 14, color: T.textTertiary }}>
+              <span>{fmtShortZAR(params.principal, "header-principal")}</span>
+              <button onClick={() => toggleTotal("header-principal")} title={isVisible("header-principal") ? "Hide" : "Reveal"} style={{ display: "flex", padding: 2, background: "transparent", border: "none", cursor: "pointer", color: T.textTertiary }}>
+                {isVisible("header-principal") ? <Eye size={16} /> : <EyeOff size={16} />}
+              </button>
+              <span> · {params.rate}% · {params.term} months</span>
             </div>
           </div>
-          {/* Theme toggle */}
-          <div style={{ display: "flex", border: `1px solid ${T.border}`, borderRadius: 8, padding: 4, background: T.card }}>
+          {/* View all / Hide all + Theme toggle */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ display: "flex", border: `1px solid ${T.border}`, borderRadius: 8, padding: 2, background: T.card }}>
+              <button onClick={viewAll} title="View all totals" style={{ fontFamily: "Inter", fontSize: 12, padding: "6px 10px", borderRadius: 6, border: "none", cursor: "pointer", background: allVisible ? T.bgSubtle : "transparent", color: allVisible ? T.primary : T.textSecondary }}>View all</button>
+              <button onClick={hideAll} title="Hide all totals" style={{ fontFamily: "Inter", fontSize: 12, padding: "6px 10px", borderRadius: 6, border: "none", cursor: "pointer", background: !anyVisible ? T.bgSubtle : "transparent", color: !anyVisible ? T.primary : T.textSecondary }}>Hide all</button>
+            </div>
+            <div style={{ display: "flex", border: `1px solid ${T.border}`, borderRadius: 8, padding: 4, background: T.card }}>
             {["light", "dark"].map((t) => (
               <button
                 key={t}
@@ -1019,11 +1130,13 @@ function AppContent() {
                 {t === "light" ? "Light" : "Dark"}
               </button>
             ))}
+            </div>
           </div>
         </div>
       </div>
 
-      <div style={{ maxWidth: 1100, margin: "0 auto", padding: "32px 40px" }}>
+      <div className="w-full" style={{ padding: "32px 24px" }}>
+        <div className="max-w-7xl mx-auto" style={{ width: "100%" }}>
         {/* Tab nav */}
         <div style={{ display: "flex", marginBottom: 32, background: T.card, border: `1px solid ${T.border}`, borderRadius: 8, padding: 4, width: "fit-content", boxShadow: T.shadow }}>
           {TABS.map((t, i) => (
@@ -1040,6 +1153,7 @@ function AppContent() {
         {tab === 0 && <SimulatorTab params={params} setParams={setParams} />}
         {tab === 1 && <RateChangePanel params={params} setParams={setParams} />}
         {tab === 2 && <TrackerTab params={params} />}
+        </div>
       </div>
     </div>
   );
