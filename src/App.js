@@ -1,23 +1,27 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useMemo } from "react";
 import {
   LineChart, Line, AreaChart, Area, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine
 } from "recharts";
 
-// ── Colours ──────────────────────────────────────────────────────────────────
+// ── Untitled UI design tokens ──────────────────────────────────────────────────
 const C = {
-  bg:      "#0a0a0f",
-  surface: "#111118",
-  card:    "#16161f",
-  border:  "#1e1e2e",
-  accent:  "#c8f04a",       // sharp lime‑yellow
-  accentDim:"#8fb033",
-  blue:    "#4a90e2",
-  orange:  "#f0884a",
-  red:     "#e25a5a",
-  muted:   "#666680",
-  text:    "#e8e8f0",
-  textDim: "#9898b0",
+  bg: "#ffffff",
+  bgSubtle: "#f9fafb",
+  surface: "#ffffff",
+  card: "#ffffff",
+  border: "#d0d5dd",
+  borderLight: "#eaecf0",
+  primary: "#7f56d9",
+  primaryHover: "#6941c6",
+  text: "#101828",
+  textSecondary: "#344054",
+  textTertiary: "#475467",
+  blue: "#7f56d9",
+  green: "#039855",
+  red: "#d92d20",
+  orange: "#dc6803",
+  shadow: "0px 1px 2px rgba(16,24,40,0.05)",
 };
 
 // ── Finance helpers ───────────────────────────────────────────────────────────
@@ -76,14 +80,14 @@ function monthsToYearsMonths(m) {
 function Stat({ label, value, sub, accent, diff }) {
   return (
     <div style={{
-      background: C.card, border: `1px solid ${C.border}`, borderRadius: 12,
+      background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, boxShadow: C.shadow,
       padding: "20px 24px", display: "flex", flexDirection: "column", gap: 6,
     }}>
-      <span style={{ fontSize: 11, letterSpacing: "0.12em", color: C.muted, textTransform: "uppercase", fontFamily: "DM Mono" }}>{label}</span>
-      <span style={{ fontSize: 26, fontWeight: 700, color: accent ? C.accent : C.text, fontFamily: "Syne", lineHeight: 1 }}>{value}</span>
-      {sub && <span style={{ fontSize: 12, color: C.textDim, fontFamily: "DM Mono" }}>{sub}</span>}
+      <span style={{ fontSize: 12, fontWeight: 500, color: C.textTertiary, fontFamily: "Inter" }}>{label}</span>
+      <span style={{ fontSize: 26, fontWeight: 600, color: accent ? C.primary : C.text, fontFamily: "Inter", lineHeight: 1 }}>{value}</span>
+      {sub && <span style={{ fontSize: 14, color: C.textSecondary, fontFamily: "Inter" }}>{sub}</span>}
       {diff !== undefined && (
-        <span style={{ fontSize: 12, color: diff < 0 ? C.accent : C.red, fontFamily: "DM Mono" }}>
+        <span style={{ fontSize: 14, color: diff < 0 ? C.green : C.red, fontFamily: "Inter" }}>
           {diff < 0 ? `↓ saves ${fmtZAR(Math.abs(diff))}` : `↑ costs ${fmtZAR(diff)} more`}
         </span>
       )}
@@ -95,8 +99,8 @@ function Stat({ label, value, sub, accent, diff }) {
 function ChartTip({ active, payload, label }) {
   if (!active || !payload?.length) return null;
   return (
-    <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, padding: "10px 14px", fontFamily: "DM Mono", fontSize: 12 }}>
-      <div style={{ color: C.muted, marginBottom: 6 }}>Month {label}</div>
+    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: "10px 14px", boxShadow: C.shadow, fontFamily: "Inter", fontSize: 14 }}>
+      <div style={{ color: C.textTertiary, marginBottom: 6 }}>Month {label}</div>
       {payload.map((p, i) => (
         <div key={i} style={{ color: p.color, marginBottom: 2 }}>
           {p.name}: {fmtZAR(p.value)}
@@ -148,8 +152,8 @@ function SimulatorTab({ params, setParams }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
       {/* ── Input panel ── */}
-      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 28 }}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 20, marginBottom: 28 }}>
+      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: 24, boxShadow: C.shadow }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 20, marginBottom: 24 }}>
           <Field label="Principal (ZAR)" value={params.principal} onChange={v => setParams(p => ({ ...p, principal: v }))} prefix="R" />
           <Field label="Interest Rate (%)" value={params.rate} onChange={v => setParams(p => ({ ...p, rate: v }))} step={0.05} />
           <Field label="Term (months)" value={params.term} onChange={v => setParams(p => ({ ...p, term: v }))} integer />
@@ -158,21 +162,21 @@ function SimulatorTab({ params, setParams }) {
         {/* Extra payment slider */}
         <div style={{ marginTop: 4 }}>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
-            <span style={{ fontFamily: "DM Mono", fontSize: 12, color: C.muted, textTransform: "uppercase", letterSpacing: "0.1em" }}>
+            <span style={{ fontFamily: "Inter", fontSize: 14, fontWeight: 500, color: C.textSecondary }}>
               Extra monthly payment
             </span>
-            <span style={{ fontFamily: "DM Mono", fontSize: 16, color: C.accent, fontWeight: 500 }}>
+            <span style={{ fontFamily: "Inter", fontSize: 16, color: C.primary, fontWeight: 600 }}>
               {fmtZAR(extra)} / month
             </span>
           </div>
           <input
             type="range" min={0} max={30000} step={500} value={extra}
             onChange={e => setExtra(+e.target.value)}
-            style={{ width: "100%", accentColor: C.accent, cursor: "pointer" }}
+            style={{ width: "100%", accentColor: C.primary, cursor: "pointer" }}
           />
           <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
-            <span style={{ fontFamily: "DM Mono", fontSize: 11, color: C.muted }}>R 0</span>
-            <span style={{ fontFamily: "DM Mono", fontSize: 11, color: C.muted }}>R 30 000</span>
+            <span style={{ fontFamily: "Inter", fontSize: 12, color: C.textTertiary }}>R 0</span>
+            <span style={{ fontFamily: "Inter", fontSize: 12, color: C.textTertiary }}>R 30 000</span>
           </div>
         </div>
 
@@ -180,11 +184,11 @@ function SimulatorTab({ params, setParams }) {
         <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
           {[0, 500, 1000, 2000, 5000, 10000].map(v => (
             <button key={v} onClick={() => setExtra(v)} style={{
-              fontFamily: "DM Mono", fontSize: 11, padding: "5px 12px", borderRadius: 6,
-              border: `1px solid ${extra === v ? C.accent : C.border}`,
-              background: extra === v ? C.accent + "18" : "transparent",
-              color: extra === v ? C.accent : C.muted,
-              cursor: "pointer", letterSpacing: "0.06em",
+              fontFamily: "Inter", fontSize: 14, fontWeight: 500, padding: "8px 16px", borderRadius: 8,
+              border: `1px solid ${extra === v ? C.primary : C.border}`,
+              background: extra === v ? C.bgSubtle : C.card,
+              color: extra === v ? C.primary : C.textSecondary,
+              cursor: "pointer", minHeight: 40, boxShadow: extra === v ? "none" : C.shadow,
             }}>
               +{v === 0 ? "None" : `R${v.toLocaleString()}`}
             </button>
@@ -211,19 +215,19 @@ function SimulatorTab({ params, setParams }) {
                 <stop offset="95%" stopColor={C.blue} stopOpacity={0} />
               </linearGradient>
               <linearGradient id="extraGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor={C.accent} stopOpacity={0.4} />
-                <stop offset="95%" stopColor={C.accent} stopOpacity={0} />
+                <stop offset="5%" stopColor={C.primary} stopOpacity={0.4} />
+                <stop offset="95%" stopColor={C.primary} stopOpacity={0} />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
-            <XAxis dataKey="month" stroke={C.muted} tick={{ fontFamily: "DM Mono", fontSize: 10, fill: C.muted }}
+            <CartesianGrid strokeDasharray="3 3" stroke={C.borderLight} />
+            <XAxis dataKey="month" stroke={C.border} tick={{ fontFamily: "Inter", fontSize: 12, fill: C.textTertiary }}
               tickFormatter={v => `M${v}`} />
-            <YAxis stroke={C.muted} tick={{ fontFamily: "DM Mono", fontSize: 10, fill: C.muted }}
+            <YAxis stroke={C.border} tick={{ fontFamily: "Inter", fontSize: 12, fill: C.textTertiary }}
               tickFormatter={fmtShortZAR} width={60} />
             <Tooltip content={<ChartTip />} />
-            <Legend wrapperStyle={{ fontFamily: "DM Mono", fontSize: 11, color: C.muted }} />
+            <Legend wrapperStyle={{ fontFamily: "Inter", fontSize: 12, color: C.textSecondary }} />
             <Area type="monotone" dataKey="base" name="Base (no extra)" stroke={C.blue} fill="url(#baseGrad)" strokeWidth={2} dot={false} />
-            {extra > 0 && <Area type="monotone" dataKey="extra" name={`+${fmtZAR(extra)}/mo`} stroke={C.accent} fill="url(#extraGrad)" strokeWidth={2} dot={false} />}
+            {extra > 0 && <Area type="monotone" dataKey="extra" name={`+${fmtZAR(extra)}/mo`} stroke={C.primary} fill="url(#extraGrad)" strokeWidth={2} dot={false} />}
           </AreaChart>
         </ResponsiveContainer>
       </ChartCard>
@@ -232,15 +236,15 @@ function SimulatorTab({ params, setParams }) {
       <ChartCard title="Monthly Interest vs Principal (Base Loan)">
         <ResponsiveContainer width="100%" height={260}>
           <BarChart data={splitData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
-            <XAxis dataKey="month" stroke={C.muted} tick={{ fontFamily: "DM Mono", fontSize: 10, fill: C.muted }}
+            <CartesianGrid strokeDasharray="3 3" stroke={C.borderLight} />
+            <XAxis dataKey="month" stroke={C.border} tick={{ fontFamily: "Inter", fontSize: 12, fill: C.textTertiary }}
               tickFormatter={v => `M${v}`} />
-            <YAxis stroke={C.muted} tick={{ fontFamily: "DM Mono", fontSize: 10, fill: C.muted }}
+            <YAxis stroke={C.border} tick={{ fontFamily: "Inter", fontSize: 12, fill: C.textTertiary }}
               tickFormatter={fmtShortZAR} width={60} />
             <Tooltip content={<ChartTip />} />
-            <Legend wrapperStyle={{ fontFamily: "DM Mono", fontSize: 11, color: C.muted }} />
+            <Legend wrapperStyle={{ fontFamily: "Inter", fontSize: 12, color: C.textSecondary }} />
             <Bar dataKey="interest" name="Interest" stackId="a" fill={C.red} />
-            <Bar dataKey="principal" name="Principal" stackId="a" fill={C.accent} radius={[3, 3, 0, 0]} />
+            <Bar dataKey="principal" name="Principal" stackId="a" fill={C.primary} radius={[3, 3, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </ChartCard>
@@ -248,20 +252,20 @@ function SimulatorTab({ params, setParams }) {
       {/* ── Amortization table ── */}
       <ChartCard title={`Amortization Schedule${extra > 0 ? ` (with +${fmtZAR(extra)}/mo)` : ""}`}>
         <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "DM Mono", fontSize: 12 }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "Inter", fontSize: 14 }}>
             <thead>
               <tr>
                 {["Month", "Payment", "Principal", "Interest", "Extra", "Balance"].map(h => (
-                  <th key={h} style={{ padding: "10px 14px", textAlign: "right", color: C.muted, borderBottom: `1px solid ${C.border}`, letterSpacing: "0.08em", fontWeight: 400, fontSize: 11 }}>{h}</th>
+                  <th key={h} style={{ padding: "16px 24px", textAlign: "right", color: C.textTertiary, borderBottom: `1px solid ${C.borderLight}`, fontWeight: 500, fontSize: 12 }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {withExtra.map((r, i) => (
-                <tr key={r.month} style={{ background: i % 2 === 0 ? "transparent" : C.surface + "60" }}>
+                <tr key={r.month} style={{ background: i % 2 === 0 ? "transparent" : C.bgSubtle }}>
                   <td style={tdStyle}>{r.month}</td>
                   <td style={tdStyle}>{fmtZAR(r.payment)}</td>
-                  <td style={{ ...tdStyle, color: C.accent }}>{fmtZAR(r.principal)}</td>
+                  <td style={{ ...tdStyle, color: C.primary }}>{fmtZAR(r.principal)}</td>
                   <td style={{ ...tdStyle, color: C.red }}>{fmtZAR(r.interest)}</td>
                   <td style={{ ...tdStyle, color: C.orange }}>{r.extra > 0 ? fmtZAR(r.extra) : "—"}</td>
                   <td style={tdStyle}>{fmtZAR(r.balance)}</td>
@@ -275,7 +279,7 @@ function SimulatorTab({ params, setParams }) {
   );
 }
 
-const tdStyle = { padding: "9px 14px", textAlign: "right", color: C.text, borderBottom: `1px solid ${C.border}18` };
+const tdStyle = { padding: "16px 24px", textAlign: "right", color: C.text, borderBottom: `1px solid ${C.borderLight}`, fontFamily: "Inter" };
 
 // ══════════════════════════════════════════════════════════════════════════════
 // TAB 2 — REALITY TRACKER
@@ -342,13 +346,13 @@ function TrackerTab({ params }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
       {/* Controls */}
-      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 28, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 20 }}>
+      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: 24, boxShadow: C.shadow, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 20 }}>
         <Field label="Loan Start Date" value={startDate} onChange={v => setStartDate(v)} type="month" />
         <Field label="Target Extra /month (R)" value={extraTarget} onChange={v => setExtraTarget(v)} prefix="R" />
       </div>
 
       {/* Stats */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 14 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 16 }}>
         <Stat label="Months Tracked" value={trackedMonths} sub={`of ${projected.length} projected`} />
         <Stat label="Avg Extra Paid" value={fmtZAR(avgActual)} sub={`target: ${fmtZAR(extraTarget)}`} accent={avgActual >= extraTarget} />
         <Stat label="Total Extra Paid" value={fmtShortZAR(totalExtraActual)} sub={`target: ${fmtShortZAR(extraTarget * trackedMonths)}`} />
@@ -359,20 +363,20 @@ function TrackerTab({ params }) {
       <ChartCard title="Balance: Projected vs Actual vs No-Extra">
         <ResponsiveContainer width="100%" height={300}>
           <LineChart data={chartData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
-            <XAxis dataKey="month" stroke={C.muted} tick={{ fontFamily: "DM Mono", fontSize: 10, fill: C.muted }}
+            <CartesianGrid strokeDasharray="3 3" stroke={C.borderLight} />
+            <XAxis dataKey="month" stroke={C.border} tick={{ fontFamily: "Inter", fontSize: 12, fill: C.textTertiary }}
               tickFormatter={v => `M${v}`} />
-            <YAxis stroke={C.muted} tick={{ fontFamily: "DM Mono", fontSize: 10, fill: C.muted }}
+            <YAxis stroke={C.border} tick={{ fontFamily: "Inter", fontSize: 12, fill: C.textTertiary }}
               tickFormatter={fmtShortZAR} width={60} />
             <Tooltip content={<ChartTip />} />
-            <Legend wrapperStyle={{ fontFamily: "DM Mono", fontSize: 11, color: C.muted }} />
-            <Line type="monotone" dataKey="base" name="No Extra" stroke={C.muted} strokeWidth={1.5} dot={false} strokeDasharray="4 4" />
+            <Legend wrapperStyle={{ fontFamily: "Inter", fontSize: 12, color: C.textSecondary }} />
+            <Line type="monotone" dataKey="base" name="No Extra" stroke={C.textTertiary} strokeWidth={1.5} dot={false} strokeDasharray="4 4" />
             <Line type="monotone" dataKey="projected" name={`Projected (+${fmtZAR(extraTarget)}/mo)`} stroke={C.blue} strokeWidth={2} dot={false} />
-            <Line type="monotone" dataKey="actual" name="Actual" stroke={C.accent} strokeWidth={2.5}
+            <Line type="monotone" dataKey="actual" name="Actual" stroke={C.primary} strokeWidth={2.5}
               dot={(props) => {
                 const { cx, cy, value } = props;
                 if (value === null) return null;
-                return <circle key={`dot-${cx}-${cy}`} cx={cx} cy={cy} r={3} fill={C.accent} />;
+                return <circle key={`dot-${cx}-${cy}`} cx={cx} cy={cy} r={3} fill={C.primary} />;
               }}
               connectNulls={false} />
           </LineChart>
@@ -383,7 +387,7 @@ function TrackerTab({ params }) {
       <ChartCard title="Monthly Extra Payment Log">
         <div style={{ display: "flex", gap: 12, marginBottom: 20, flexWrap: "wrap", alignItems: "flex-end" }}>
           <div>
-            <label style={{ fontFamily: "DM Mono", fontSize: 11, color: C.muted, display: "block", marginBottom: 6, letterSpacing: "0.08em" }}>
+            <label style={{ fontFamily: "Inter", fontSize: 14, fontWeight: 500, color: C.textSecondary, display: "block", marginBottom: 6 }}>
               {editMonth !== null ? `EDITING MONTH ${editMonth + 1}` : `LOG MONTH ${entries.length + 1}`}
             </label>
             <input
@@ -392,33 +396,33 @@ function TrackerTab({ params }) {
               value={inputExtra}
               onChange={e => setInputExtra(e.target.value)}
               style={{
-                fontFamily: "DM Mono", fontSize: 14, background: C.surface,
+                fontFamily: "Inter", fontSize: 14, background: C.card,
                 border: `1px solid ${C.border}`, borderRadius: 8, padding: "10px 14px",
-                color: C.text, width: 180, outline: "none",
+                color: C.text, width: 180, outline: "none", minHeight: 40,
               }}
             />
           </div>
           <button onClick={addOrEdit} style={{
-            fontFamily: "Syne", fontWeight: 600, fontSize: 13, padding: "11px 22px",
-            background: C.accent, color: "#0a0a0f", border: "none", borderRadius: 8, cursor: "pointer",
+            fontFamily: "Inter", fontWeight: 600, fontSize: 14, padding: "10px 16px", minHeight: 40,
+            background: C.primary, color: "white", border: "none", borderRadius: 8, cursor: "pointer", boxShadow: C.shadow,
           }}>
             {editMonth !== null ? "Update" : "Log Month"}
           </button>
           {editMonth !== null && (
             <button onClick={() => { setEditMonth(null); setInputExtra(""); }} style={{
-              fontFamily: "DM Mono", fontSize: 12, padding: "11px 16px",
-              background: "transparent", color: C.muted, border: `1px solid ${C.border}`, borderRadius: 8, cursor: "pointer",
+              fontFamily: "Inter", fontSize: 14, fontWeight: 500, padding: "10px 16px", minHeight: 40,
+              background: C.card, color: C.textSecondary, border: `1px solid ${C.border}`, borderRadius: 8, cursor: "pointer",
             }}>Cancel</button>
           )}
         </div>
 
         {/* Table */}
         <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "DM Mono", fontSize: 12 }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "Inter", fontSize: 14 }}>
             <thead>
               <tr>
                 {["Month", "Date", "Required", "Target Extra", "Actual Extra", "Variance", "Status", ""].map(h => (
-                  <th key={h} style={{ padding: "10px 14px", textAlign: "right", color: C.muted, borderBottom: `1px solid ${C.border}`, letterSpacing: "0.08em", fontWeight: 400, fontSize: 11 }}>{h}</th>
+                  <th key={h} style={{ padding: "16px 24px", textAlign: "right", color: C.textTertiary, borderBottom: `1px solid ${C.borderLight}`, fontWeight: 500, fontSize: 12 }}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -429,22 +433,22 @@ function TrackerTab({ params }) {
                 const variance = hasData ? entry.extra - extraTarget : null;
                 const status = !hasData ? "—" : variance >= 0 ? "✓ On track" : "✗ Short";
                 return (
-                  <tr key={i} style={{ background: i % 2 === 0 ? "transparent" : C.surface + "50" }}>
+                  <tr key={i} style={{ background: i % 2 === 0 ? "transparent" : C.bgSubtle }}>
                     <td style={tdStyle}>{i + 1}</td>
                     <td style={tdStyle}>{startYearMonth(i)}</td>
                     <td style={tdStyle}>{fmtZAR(basePayment)}</td>
                     <td style={{ ...tdStyle, color: C.blue }}>{fmtZAR(extraTarget)}</td>
-                    <td style={{ ...tdStyle, color: hasData ? C.accent : C.muted }}>
+                    <td style={{ ...tdStyle, color: hasData ? C.primary : C.textTertiary }}>
                       {hasData ? fmtZAR(entry.extra) : "—"}
                     </td>
-                    <td style={{ ...tdStyle, color: variance === null ? C.muted : variance >= 0 ? C.accent : C.red }}>
+                    <td style={{ ...tdStyle, color: variance === null ? C.textTertiary : variance >= 0 ? C.green : C.red }}>
                       {variance === null ? "—" : (variance >= 0 ? "+" : "") + fmtZAR(variance)}
                     </td>
-                    <td style={{ ...tdStyle, color: !hasData ? C.muted : variance >= 0 ? C.accent : C.red, textAlign: "right" }}>{status}</td>
-                    <td style={{ padding: "9px 14px", textAlign: "right" }}>
+                    <td style={{ ...tdStyle, color: !hasData ? C.textTertiary : variance >= 0 ? C.green : C.red, textAlign: "right" }}>{status}</td>
+                    <td style={{ padding: "16px 24px", textAlign: "right" }}>
                       {hasData && (
                         <button onClick={() => { setEditMonth(i); setInputExtra(entry.extra); }}
-                          style={{ fontFamily: "DM Mono", fontSize: 10, padding: "3px 8px", background: "transparent", border: `1px solid ${C.border}`, borderRadius: 4, color: C.muted, cursor: "pointer" }}>
+                          style={{ fontFamily: "Inter", fontSize: 12, padding: "6px 12px", background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, color: C.textSecondary, cursor: "pointer" }}>
                           edit
                         </button>
                       )}
@@ -462,13 +466,13 @@ function TrackerTab({ params }) {
         <ChartCard title="Extra Payments: Target vs Actual">
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={entries.map((e, i) => ({ month: i + 1, actual: e?.extra ?? 0, target: extraTarget }))} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
-              <XAxis dataKey="month" stroke={C.muted} tick={{ fontFamily: "DM Mono", fontSize: 10, fill: C.muted }} tickFormatter={v => `M${v}`} />
-              <YAxis stroke={C.muted} tick={{ fontFamily: "DM Mono", fontSize: 10, fill: C.muted }} tickFormatter={fmtShortZAR} width={60} />
+              <CartesianGrid strokeDasharray="3 3" stroke={C.borderLight} />
+              <XAxis dataKey="month" stroke={C.border} tick={{ fontFamily: "Inter", fontSize: 12, fill: C.textTertiary }} tickFormatter={v => `M${v}`} />
+              <YAxis stroke={C.border} tick={{ fontFamily: "Inter", fontSize: 12, fill: C.textTertiary }} tickFormatter={fmtShortZAR} width={60} />
               <Tooltip content={<ChartTip />} />
-              <Legend wrapperStyle={{ fontFamily: "DM Mono", fontSize: 11, color: C.muted }} />
-              <ReferenceLine y={extraTarget} stroke={C.blue} strokeDasharray="4 4" label={{ value: "Target", fill: C.blue, fontFamily: "DM Mono", fontSize: 10 }} />
-              <Bar dataKey="actual" name="Actual Extra" fill={C.accent} radius={[4, 4, 0, 0]} />
+              <Legend wrapperStyle={{ fontFamily: "Inter", fontSize: 12, color: C.textSecondary }} />
+              <ReferenceLine y={extraTarget} stroke={C.blue} strokeDasharray="4 4" label={{ value: "Target", fill: C.blue, fontFamily: "Inter", fontSize: 10 }} />
+              <Bar dataKey="actual" name="Actual Extra" fill={C.primary} radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
@@ -511,14 +515,14 @@ function RateChangePanel({ params, setParams }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
-      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 28, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 20 }}>
+      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: 24, boxShadow: C.shadow, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 20 }}>
         <Field label="Current Rate (%)" value={params.rate} onChange={v => setParams(p => ({ ...p, rate: v }))} step={0.05} />
         <Field label="New Rate After Drop (%)" value={newRate} onChange={setNewRate} step={0.05} />
         <Field label="Rate Drops at Month" value={atMonth} onChange={setAtMonth} integer />
         <Field label="Extra Payment /mo (R)" value={extra} onChange={setExtra} prefix="R" />
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 14 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 16 }}>
         <Stat label="Current Payment" value={fmtZAR(oldPayment)} sub={`at ${params.rate}%`} />
         <Stat label="New Payment" value={fmtZAR(newPayment)} sub={`at ${newRate}% from M${atMonth}`} accent />
         <Stat label="Monthly Saving" value={fmtZAR(saving)} sub="after rate drop" accent={saving > 0} />
@@ -529,14 +533,14 @@ function RateChangePanel({ params, setParams }) {
       <ChartCard title="Balance Trajectory with Rate Change">
         <ResponsiveContainer width="100%" height={300}>
           <LineChart data={chartData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
-            <XAxis dataKey="month" stroke={C.muted} tick={{ fontFamily: "DM Mono", fontSize: 10, fill: C.muted }} tickFormatter={v => `M${v}`} />
-            <YAxis stroke={C.muted} tick={{ fontFamily: "DM Mono", fontSize: 10, fill: C.muted }} tickFormatter={fmtShortZAR} width={60} />
+            <CartesianGrid strokeDasharray="3 3" stroke={C.borderLight} />
+            <XAxis dataKey="month" stroke={C.border} tick={{ fontFamily: "Inter", fontSize: 12, fill: C.textTertiary }} tickFormatter={v => `M${v}`} />
+            <YAxis stroke={C.border} tick={{ fontFamily: "Inter", fontSize: 12, fill: C.textTertiary }} tickFormatter={fmtShortZAR} width={60} />
             <Tooltip content={<ChartTip />} />
-            <Legend wrapperStyle={{ fontFamily: "DM Mono", fontSize: 11, color: C.muted }} />
-            <ReferenceLine x={atMonth} stroke={C.orange} strokeDasharray="4 4" label={{ value: `Rate → ${newRate}%`, fill: C.orange, fontFamily: "DM Mono", fontSize: 10 }} />
+            <Legend wrapperStyle={{ fontFamily: "Inter", fontSize: 12, color: C.textSecondary }} />
+            <ReferenceLine x={atMonth} stroke={C.orange} strokeDasharray="4 4" label={{ value: `Rate → ${newRate}%`, fill: C.orange, fontFamily: "Inter", fontSize: 10 }} />
             <Line type="monotone" dataKey="before" name={`Before (${params.rate}%)`} stroke={C.red} strokeWidth={2} dot={false} connectNulls />
-            <Line type="monotone" dataKey="after" name={`After (${newRate}%)`} stroke={C.accent} strokeWidth={2} dot={false} connectNulls />
+            <Line type="monotone" dataKey="after" name={`After (${newRate}%)`} stroke={C.primary} strokeWidth={2} dot={false} connectNulls />
           </LineChart>
         </ResponsiveContainer>
       </ChartCard>
@@ -547,8 +551,8 @@ function RateChangePanel({ params, setParams }) {
 // ── Shared UI ─────────────────────────────────────────────────────────────────
 function ChartCard({ title, children }) {
   return (
-    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 24 }}>
-      <div style={{ fontFamily: "Syne", fontWeight: 600, fontSize: 15, color: C.text, marginBottom: 20, letterSpacing: "0.02em" }}>{title}</div>
+    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: 24, boxShadow: C.shadow }}>
+      <div style={{ fontFamily: "Inter", fontWeight: 600, fontSize: 18, lineHeight: "28px", color: C.text, marginBottom: 20, paddingBottom: 16, borderBottom: `1px solid ${C.borderLight}` }}>{title}</div>
       {children}
     </div>
   );
@@ -557,15 +561,15 @@ function ChartCard({ title, children }) {
 function Field({ label, value, onChange, prefix, step = 1, integer = false, type = "number" }) {
   return (
     <div>
-      <label style={{ fontFamily: "DM Mono", fontSize: 11, color: C.muted, display: "block", marginBottom: 6, letterSpacing: "0.1em", textTransform: "uppercase" }}>{label}</label>
-      <div style={{ display: "flex", alignItems: "center", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, overflow: "hidden" }}>
-        {prefix && <span style={{ padding: "10px 12px", fontFamily: "DM Mono", fontSize: 13, color: C.muted, borderRight: `1px solid ${C.border}` }}>{prefix}</span>}
+      <label style={{ fontFamily: "Inter", fontSize: 14, fontWeight: 500, color: C.textSecondary, display: "block", marginBottom: 6 }}>{label}</label>
+      <div style={{ display: "flex", alignItems: "center", background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, overflow: "hidden" }}>
+        {prefix && <span style={{ padding: "10px 12px", fontFamily: "Inter", fontSize: 14, color: C.textTertiary, borderRight: `1px solid ${C.border}` }}>{prefix}</span>}
         <input
           type={type}
           value={value}
           onChange={e => onChange(type === "month" ? e.target.value : (integer ? parseInt(e.target.value) || 0 : parseFloat(e.target.value) || 0))}
           step={step}
-          style={{ fontFamily: "DM Mono", fontSize: 14, background: "transparent", border: "none", padding: "10px 14px", color: C.text, width: "100%", outline: "none" }}
+          style={{ fontFamily: "Inter", fontSize: 14, background: "transparent", border: "none", padding: "10px 14px", color: C.text, width: "100%", outline: "none" }}
         />
       </div>
     </div>
@@ -584,29 +588,26 @@ export default function App() {
   });
 
   return (
-    <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "Syne" }}>
+    <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "Inter" }}>
       {/* Header */}
-      <div style={{ borderBottom: `1px solid ${C.border}`, padding: "0 40px" }}>
-        <div style={{ maxWidth: 1100, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", height: 64 }}>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
-            <span style={{ fontFamily: "Syne", fontWeight: 800, fontSize: 18, letterSpacing: "-0.02em", color: C.accent }}>BOND</span>
-            <span style={{ fontFamily: "DM Mono", fontSize: 11, color: C.muted, letterSpacing: "0.14em" }}>SIMULATOR</span>
-          </div>
-          <div style={{ fontFamily: "DM Mono", fontSize: 11, color: C.muted }}>
-            R{(params.principal / 1_000_000).toFixed(2)}m · {params.rate}% · {params.term}mo
+      <div style={{ borderBottom: `1px solid ${C.borderLight}`, padding: "0 40px" }}>
+        <div style={{ maxWidth: 1100, margin: "0 auto", display: "flex", flexDirection: "column", gap: 4, paddingTop: 20, paddingBottom: 20 }}>
+          <div style={{ fontFamily: "Inter", fontWeight: 600, fontSize: 30, lineHeight: "38px", color: C.text }}>Bond Simulator</div>
+          <div style={{ fontFamily: "Inter", fontSize: 14, color: C.textTertiary }}>
+            R{(params.principal / 1_000_000).toFixed(2)}m · {params.rate}% · {params.term} months
           </div>
         </div>
       </div>
 
       <div style={{ maxWidth: 1100, margin: "0 auto", padding: "32px 40px" }}>
         {/* Tab nav */}
-        <div style={{ display: "flex", gap: 4, marginBottom: 32, background: C.card, padding: 4, borderRadius: 10, border: `1px solid ${C.border}`, width: "fit-content" }}>
+        <div style={{ display: "flex", marginBottom: 32, background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: 4, width: "fit-content", boxShadow: C.shadow }}>
           {TABS.map((t, i) => (
             <button key={t} onClick={() => setTab(i)} style={{
-              fontFamily: "Syne", fontWeight: 600, fontSize: 13, padding: "9px 22px", borderRadius: 7,
-              border: "none", cursor: "pointer", letterSpacing: "0.01em", transition: "all 0.15s",
-              background: tab === i ? C.accent : "transparent",
-              color: tab === i ? "#0a0a0f" : C.textDim,
+              fontFamily: "Inter", fontWeight: 600, fontSize: 14, padding: "8px 16px", minHeight: 40, borderRadius: 6,
+              border: "none", cursor: "pointer", transition: "all 0.15s",
+              background: tab === i ? C.bgSubtle : "transparent",
+              color: C.textSecondary,
             }}>{t}</button>
           ))}
         </div>
