@@ -690,7 +690,7 @@ function ExtraPaymentControl({ value, onChange }) {
 // ══════════════════════════════════════════════════════════════════════════════
 function TrackerTab({ params }) {
   const { tokens: T, fmtZAR, fmtShortZAR, isVisible, toggleTotal } = useTheme();
-  const [startDate, setStartDate] = useState("2025-01");
+  const [startDate, setStartDate] = useState("2026-07");
   const [extraTarget, setExtraTarget] = useState(2000);
   const [entries, setEntries] = useState([]);
   const [inputExtra, setInputExtra] = useState("");
